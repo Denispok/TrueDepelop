@@ -97,12 +97,10 @@ public class MainActivity extends AppCompatActivity {
             RestTemplate template = new RestTemplate();
             template.getMessageConverters().add(new MappingJackson2HttpMessageConverter());
 
-            try{
-            return template.getForObject(Constants.URL.GET_REMIND_ITEM, RemindDTO.class);
-            }
-            catch(Exception e){
-                return null;
-            }
+            RemindDTO reminder =  template.getForObject(Constants.URL.GET_REMIND_ITEM, RemindDTO.class);
+
+            if (reminder != null) return reminder;
+            else return null;
         }
 
         @Override
