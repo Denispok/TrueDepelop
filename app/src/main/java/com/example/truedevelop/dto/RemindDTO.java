@@ -4,7 +4,7 @@ import java.util.Date;
 
 public class RemindDTO {
 
-    private String id;
+    private long id;
     private String title;
     private Date remindDate;
 
@@ -23,11 +23,11 @@ public class RemindDTO {
         this.title = title;
     }
 
-    public String getId() {
+    public long getId() {
         return id;
     }
 
-    public void setId(String id) {
+    public void setId(long id) {
         this.id = id;
     }
 

@@ -17,7 +17,7 @@ import java.util.List;
 
 public class NewsFragment extends AbstractionTabFragment {
 
-    private static final int LAYOUT = R.layout.fragment_history;
+    private static final int LAYOUT = R.layout.fragment_news;
 
     private List<RemindDTO> data;
     private RemindListAdapter adapter;

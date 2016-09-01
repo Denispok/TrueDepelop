@@ -1,5 +1,7 @@
 package com.example.truedevelop;
 
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.design.widget.NavigationView;
@@ -9,7 +11,9 @@ import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBarDrawerToggle;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.text.format.DateUtils;
 import android.view.MenuItem;
+import android.view.View;
 
 import com.example.truedevelop.adapter.TabsFragmentAdapter;
 import com.example.truedevelop.dto.RemindDTO;
@@ -17,7 +21,9 @@ import com.example.truedevelop.dto.RemindDTO;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.Date;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
@@ -30,6 +36,8 @@ public class MainActivity extends AppCompatActivity {
 
     private TabsFragmentAdapter adapter;
 
+    DBHelper dbHelper;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         setTheme(R.style.AppDefault);
@@ -38,6 +46,7 @@ public class MainActivity extends AppCompatActivity {
 
         initToolbar();
         initNavView();
+        initDB();
         initTabs();
     }
 
@@ -53,17 +62,6 @@ public class MainActivity extends AppCompatActivity {
         });
 
         toolbar.inflateMenu(R.menu.menu);
-    }
-
-    private void initTabs() {
-        viewPager = (ViewPager) findViewById(R.id.viewPager);
-        adapter = new TabsFragmentAdapter(this, getSupportFragmentManager());
-        viewPager.setAdapter(adapter);
-
-        new RemindMeTask().execute();
-
-        TabLayout tabLayout = (TabLayout) findViewById(R.id.tabLayout);
-        tabLayout.setupWithViewPager(viewPager);
     }
 
     private void initNavView() {
@@ -87,29 +85,87 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    private void initDB() {
+        dbHelper = new DBHelper(this);
+    }
+
+    private void initTabs() {
+        viewPager = (ViewPager) findViewById(R.id.viewPager);
+        adapter = new TabsFragmentAdapter(this, getSupportFragmentManager());
+        viewPager.setAdapter(adapter);
+
+        new UpdateRemindTask().execute();
+        //new RemindMeTask().execute();
+
+        TabLayout tabLayout = (TabLayout) findViewById(R.id.tabLayout);
+        tabLayout.setupWithViewPager(viewPager);
+    }
+
     private void showNotificationTab() {
         viewPager.setCurrentItem(Constants.TAB_ONE_N);
     }
 
-    private class RemindMeTask extends AsyncTask<Void, Void, RemindDTO> {
+    private class RemindMeTask extends AsyncTask<Void, Void, List<RemindDTO>> {
         @Override
-        protected RemindDTO doInBackground(Void... params) {
+        protected List<RemindDTO> doInBackground(Void... params) {
+            SQLiteDatabase database = dbHelper.getReadableDatabase();
+            Cursor cursor = database.query(DBHelper.TABLE_NEWS, null, null, null, null, null, null);
+
+            if (cursor.moveToFirst()){
+                List<RemindDTO> reminders = new ArrayList<>();
+
+                int idIndex = cursor.getColumnIndex(DBHelper.KEY_ID);
+                int titleIndex = cursor.getColumnIndex(DBHelper.KEY_TITLE);
+                int dateIndex = cursor.getColumnIndex(DBHelper.KEY_DATE);
+
+                do {
+                    RemindDTO remindDTO = new RemindDTO();
+                    remindDTO.setId(cursor.getLong(idIndex));
+                    remindDTO.setTitle(cursor.getString(titleIndex));
+                    Date d = new Date(cursor.getString(dateIndex));
+                    remindDTO.setRemindDate(d);
+                    reminders.add(remindDTO);
+                } while (cursor.moveToNext());
+
+                cursor.close();
+                return reminders;
+            }
+            else {
+                cursor.close();
+                return null;
+            }
+        }
+
+        @Override
+        protected void onPostExecute(List<RemindDTO> reminders) {
+            if(reminders != null) adapter.setData(reminders);
+        }
+    }
+
+    private class UpdateRemindTask extends AsyncTask<Void, Void, List<RemindDTO>> {
+        @Override
+        protected List<RemindDTO> doInBackground(Void... params) {
             RestTemplate template = new RestTemplate();
             template.getMessageConverters().add(new MappingJackson2HttpMessageConverter());
 
-            RemindDTO reminder =  template.getForObject(Constants.URL.GET_REMIND_ITEM, RemindDTO.class);
-
-            if (reminder != null) return reminder;
-            else return null;
+            try{
+                RemindDTO[] reminders = template.getForObject(Constants.URL.GET_REMINDERS, RemindDTO[].class);
+                List<RemindDTO> remindersList = Arrays.asList(reminders);
+                if (remindersList != null) return remindersList;
+                else return null;
+            } catch (Exception e) {return null;}
         }
 
         @Override
-        protected void onPostExecute(RemindDTO remindDTO) {
-            if(remindDTO != null){
-            List<RemindDTO> list = new ArrayList<>();
-            list.add(remindDTO);
-
-            adapter.setData(list);}
+        protected void onPostExecute(List<RemindDTO> remindDTO) {
+            if(remindDTO != null) {
+                dbHelper.addRemindDTOList(remindDTO, dbHelper);
+            }
+            new RemindMeTask().execute();
         }
+    }
+
+    public void updateDB(View view){
+        new UpdateRemindTask().execute();
     }
 }
